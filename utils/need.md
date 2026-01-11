@@ -4,6 +4,7 @@ def masked_mae(pred, true, eps=1e-5):
     loss = torch.abs(pred - true)
     return (loss * mask).sum() / (mask.sum() + eps)
 ```
+>eps is there to prevent division by zero and NaNs.
 
 ## 🔴 The core problem this function solves
 
