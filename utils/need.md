@@ -1,3 +1,7 @@
+def masked_mae(pred, true, eps=1e-5):
+    mask = (true != 0).float()
+    loss = torch.abs(pred - true)
+    return (loss * mask).sum() / (mask.sum() + eps)
 
 
 ## 🔴 The core problem this function solves
