@@ -15,7 +15,7 @@ The dataset expects traffic data in the following format:
 
 data: np.ndarray [T, N, F]
 
-````
+
 
 | Symbol | Meaning |
 |------|--------|
@@ -26,7 +26,8 @@ data: np.ndarray [T, N, F]
 ### Example
 ```python
 data.shape = (28800, 207, 3)
-````
+```
+
 
 | Feature Index | Meaning   |
 | ------------- | --------- |
