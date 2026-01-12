@@ -79,9 +79,87 @@ This preserves chronological order for correct evaluation.
 
 
 
-### ✅ One-Line Summary
+
 
 > **DataLoader shuffles dataset indices, not the underlying time-series data or sliding-window structure.**
+
+
+
+
+> **DataLoader’s primary role is to stack individual dataset samples into batches.
+> Shuffling is a secondary, optional role that only changes sample order.**
+
+---
+
+## 🧠 Precise Breakdown
+
+### 1️⃣ **Primary Role — Batching (Stacking)**
+
+The **main job** of the DataLoader is to:
+
+* Call `Dataset.__getitem__()` repeatedly
+* **Stack samples along a new batch dimension**
+
+```text
+Single sample from Dataset:
+X → [T, N, F]
+
+After DataLoader batching:
+X → [B, T, N, F]
+```
+
+This stacking is done using:
+
+```python
+torch.stack(...)
+```
+
+📌 Without this, the model **cannot** train efficiently.
+
+---
+
+### 2️⃣ **Secondary Role — Shuffling (Optional)**
+
+If `shuffle=True`:
+
+* DataLoader **shuffles dataset indices**
+* Changes the order of samples **between epochs**
+* Does NOT change sample contents
+
+```text
+Window A, Window B, Window C  →  Window C, Window A, Window B
+```
+
+📌 Shuffling improves:
+
+* Gradient diversity
+* Training stability
+* Generalization
+
+---
+
+## ❌ What DataLoader Still Never Does
+
+* Does not create sliding windows
+* Does not normalize data
+* Does not reshape model-specific dimensions
+* Does not modify the raw `np.ndarray`
+
+---
+
+## 🧠 Mental Model (Lock This In)
+
+> **Dataset defines one sample**
+> **DataLoader stacks samples into batches**
+> **Shuffling only changes the order of stacking**
+
+---
+
+## ✅ Final One-Liner (Perfect for README)
+
+> **The DataLoader’s primary responsibility is batching (stacking samples into a batch dimension); shuffling is a secondary, optional operation that randomizes the order of dataset samples without modifying their content.**
+
+
 
 ```
 
