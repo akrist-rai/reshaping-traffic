@@ -182,3 +182,42 @@ pip install torch numpy mamba-ssm
 ---
 
 
+## 🚦 Phase-2: Traffic Routing & Flow Control (Closed-Loop)
+
+This project extends beyond forecasting into active traffic control.
+System Overview
+
+Current Traffic
+     ↓
+Model-1 (NewtonGraphMamba)
+     ↓
+Future Traffic Prediction
+     ↓
+Model-2 (Routing Controller)
+     ↓
+Route Allocation (75 / 25)
+     ↓
+Traffic Flow Change
+     ↓
+Feedback → Next Prediction
+
+Key Design Decisions
+
+    Separation of prediction and control
+
+    Congestion-aware routing (not shortest-path only)
+
+    Probabilistic traffic splitting to prevent collapse
+
+    Stability guards to avoid oscillations
+
+Why This Matters
+
+This transforms the project from:
+
+    “traffic prediction”
+    into
+    “intelligent transportation control system”
+
+
+
