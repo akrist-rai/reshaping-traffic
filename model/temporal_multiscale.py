@@ -43,3 +43,4 @@ class MultiScaleTemporal(nn.Module):
 
         weights = torch.softmax(scores, dim=0)
         return weights[0]*f_s + weights[1]*f_m + weights[2]*f_l
+#Now your model learns short + long term patterns
