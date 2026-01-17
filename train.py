@@ -10,6 +10,28 @@ from datasets.traffic_dataset import TrafficDataset
 from utils.metrics import masked_mae
 from utils.seed import set_seed
 
+from utils.early_stopping import EarlyStopping
+import logging
+
+logging.basicConfig(
+    filename="training.log",
+    level=logging.INFO,
+    format="%(asctime)s | %(message)s"
+)
+
+early_stop = EarlyStopping(patience=10)
+
+
+
+def auto_accumulation(device_mem_gb):
+    if device_mem_gb <= 4:
+        return 4, 8
+    elif device_mem_gb <= 6:
+        return 8, 4
+    else:
+        return 8, 8
+
+batch_size, grad_accum_steps = auto_accumulation(4)
 
 def main():
     set_seed()
@@ -67,6 +89,12 @@ def main():
         optimizer.zero_grad(set_to_none=True)
 
         running_loss = 0.0
+        logging.info(f"Epoch {epoch} | Val MAE {val_loss:.4f}")
+
+        if early_stop.step(val_loss):
+            print("🛑 Early stopping triggered")
+            break
+
 
         for step, (X, Y) in enumerate(train_loader):
             X = X.to(device, non_blocking=True)
