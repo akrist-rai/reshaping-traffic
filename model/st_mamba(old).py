@@ -2,6 +2,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+from model.temporal_multiscale import MultiScaleTemporal
+from model.dynamic_graph import DynamicGraphLearner
+from model.uncertainty_head import ProbabilisticHead
 
 # Try importing Mamba, fallback to CPU version if not available for testing
 try:
