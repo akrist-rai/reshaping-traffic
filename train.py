@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import logging
 from torch.utils.data import DataLoader
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -9,50 +10,46 @@ from models.st_mamba import NewtonGraphMamba
 from datasets.traffic_dataset import TrafficDataset
 from utils.metrics import masked_mae
 from utils.seed import set_seed
-
 from utils.early_stopping import EarlyStopping
-import logging
+from utils.checkpoint import save_checkpoint, load_checkpoint
 
+
+# =======================
+# LOGGING
+# =======================
 logging.basicConfig(
     filename="training.log",
     level=logging.INFO,
     format="%(asctime)s | %(message)s"
 )
 
-early_stop = EarlyStopping(patience=10)
-
-
 
 def auto_accumulation(device_mem_gb):
     if device_mem_gb <= 4:
-        return 4, 8
+        return 4, 8     # effective batch = 32
     elif device_mem_gb <= 6:
         return 8, 4
     else:
         return 8, 8
 
-batch_size, grad_accum_steps = auto_accumulation(4)
 
 def main():
     set_seed()
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # =======================
-    # LOAD DATA
+    # DATA
     # =======================
     data = np.load("data/metr_la/metr_la.npz")["data"]
     adj = torch.tensor(np.load("data/metr_la/adj.npy")).float().to(device)
 
     T = len(data)
-    train, val = data[:int(.7*T)], data[int(.7*T):int(.8*T)]
+    train, val = data[:int(0.7 * T)], data[int(0.7 * T):int(0.8 * T)]
 
     train_ds = TrafficDataset(train)
     val_ds = TrafficDataset(val, mean=train_ds.mean, std=train_ds.std)
 
-    # 🔽 SMALL BATCH SIZE
-    batch_size = 4
-    grad_accum_steps = 8  # 4 × 8 = effective batch 32
+    batch_size, grad_accum_steps = auto_accumulation(4)
 
     train_loader = DataLoader(
         train_ds,
@@ -76,26 +73,32 @@ def main():
 
     optimizer = AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
     scheduler = ReduceLROnPlateau(optimizer, patience=5)
-
     scaler = GradScaler(enabled=torch.cuda.is_available())
 
-    best_val = float("inf")
+    # =======================
+    # CHECKPOINT + EARLY STOP
+    # =======================
+    early_stop = EarlyStopping(patience=10)
+
+    start_epoch, best_val, counter = load_checkpoint(
+        model, optimizer, scheduler
+    )
+    early_stop.load(best_val, counter)
+
+    print(f"▶ Resuming from epoch {start_epoch}")
 
     # =======================
     # TRAINING LOOP
     # =======================
-    for epoch in range(50):
+    max_epochs = 500  # big number, early stop will handle it
+
+    for epoch in range(start_epoch, max_epochs):
         model.train()
         optimizer.zero_grad(set_to_none=True)
 
         running_loss = 0.0
-        logging.info(f"Epoch {epoch} | Val MAE {val_loss:.4f}")
 
-        if early_stop.step(val_loss):
-            print("🛑 Early stopping triggered")
-            break
-
-
+        # ---- TRAIN ----
         for step, (X, Y) in enumerate(train_loader):
             X = X.to(device, non_blocking=True)
             Y = Y.to(device, non_blocking=True).permute(0, 2, 1)
@@ -107,15 +110,12 @@ def main():
             scaler.scale(loss).backward()
             running_loss += loss.item()
 
-            # 🔁 GRADIENT ACCUMULATION
             if (step + 1) % grad_accum_steps == 0:
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad(set_to_none=True)
 
-        # =======================
-        # VALIDATION
-        # =======================
+        # ---- VALIDATION ----
         model.eval()
         val_loss = 0.0
 
@@ -128,15 +128,35 @@ def main():
         val_loss /= len(val_loader)
         scheduler.step(val_loss)
 
+        # ---- SAVE BEST MODEL ----
         if val_loss < best_val:
             best_val = val_loss
             torch.save(model.state_dict(), "best_model.pt")
+
+        # ---- SAVE CHECKPOINT ----
+        save_checkpoint({
+            "epoch": epoch + 1,
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "scheduler": scheduler.state_dict(),
+            "best_val": best_val,
+            "early_stop_counter": early_stop.counter
+        })
+
+        logging.info(
+            f"Epoch {epoch} | Train Loss {running_loss:.4f} | Val MAE {val_loss:.4f}"
+        )
 
         print(
             f"Epoch {epoch:03d} | "
             f"Train Loss {running_loss:.4f} | "
             f"Val MAE {val_loss:.4f}"
         )
+
+        # ---- EARLY STOP ----
+        if early_stop.step(val_loss):
+            print("🛑 Early stopping triggered")
+            break
 
 
 if __name__ == "__main__":
