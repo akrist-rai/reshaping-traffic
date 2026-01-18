@@ -12,6 +12,9 @@ from utils.metrics import masked_mae
 from utils.seed import set_seed
 from utils.early_stopping import EarlyStopping
 from utils.checkpoint import save_checkpoint, load_checkpoint
+from utils.logger import CSVLogger
+logger = CSVLogger()
+
 
 
 # =======================
@@ -127,6 +130,8 @@ def main():
 
         val_loss /= len(val_loader)
         scheduler.step(val_loss)
+        logger.log(epoch, running_loss, val_loss)
+
 
         # ---- SAVE BEST MODEL ----
         if val_loss < best_val:
